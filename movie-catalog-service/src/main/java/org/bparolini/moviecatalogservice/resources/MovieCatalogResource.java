@@ -1,39 +1,49 @@
 package org.bparolini.moviecatalogservice.resources;
 
+import org.bparolini.moviecatalogservice.models.Catalog;
 import org.bparolini.moviecatalogservice.models.CatalogItem;
 import org.bparolini.moviecatalogservice.models.Movie;
-import org.bparolini.moviecatalogservice.models.Rating;
+import org.bparolini.moviecatalogservice.models.UserRating;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/catalog")
 public class MovieCatalogResource {
 
-    @GetMapping("/{userId}")
-    public List<CatalogItem> getCatalog(@PathVariable String userId) {
+    private final RestTemplate restTemplate;
 
-        RestTemplate restTemplate = new RestTemplate();
+    @Autowired
+    public MovieCatalogResource(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    @GetMapping("/{userId}")
+    public ResponseEntity<Catalog> getCatalog(@PathVariable String userId) {
 
         // get all rated movie IDs
-        List<Rating> ratings = Arrays.asList(
-            new Rating("1234", 4),
-            new Rating("5678", 3)
-        );
+        UserRating ratings = restTemplate.getForEntity("http://localhost:8083/ratingsdata/users/" + userId, UserRating.class).getBody();
 
-        // for each movie ID, call movie info service and get details
-        return ratings.stream().map(rating -> {
-            final Movie movie = restTemplate.getForObject("http://localhost:8082/movies/" + rating.getMovieId(), Movie.class);
-            return new CatalogItem(movie.getName(), "", rating.getRating());
-        }).collect(Collectors.toList());
+        if (ratings == null) return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
 
-        // put them all together
+        List<CatalogItem> catalogItems = ratings.getRatings().stream().map(rating -> {
+            // for each movie ID, call movie info service and get details
+            final Movie movie = restTemplate.getForEntity("http://localhost:8082/movies/" + rating.getMovieId(), Movie.class).getBody();
+
+            // put them all together
+            return movie != null ? new CatalogItem(movie.getName(), "", rating.getRating()) : null;
+        }).filter(Objects::nonNull).collect(Collectors.toList());
+
+        return ResponseEntity.ok(new Catalog(catalogItems));
     }
 }
