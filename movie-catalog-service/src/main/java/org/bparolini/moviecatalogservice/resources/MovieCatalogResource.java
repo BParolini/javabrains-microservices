@@ -32,13 +32,13 @@ public class MovieCatalogResource {
     public ResponseEntity<Catalog> getCatalog(@PathVariable String userId) {
 
         // get all rated movie IDs
-        UserRating ratings = restTemplate.getForEntity("http://localhost:8083/ratingsdata/users/" + userId, UserRating.class).getBody();
+        UserRating ratings = restTemplate.getForEntity("http://ratings-data-service/ratingsdata/users/" + userId, UserRating.class).getBody();
 
         if (ratings == null) return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
 
         List<CatalogItem> catalogItems = ratings.getRatings().stream().map(rating -> {
             // for each movie ID, call movie info service and get details
-            final Movie movie = restTemplate.getForEntity("http://localhost:8082/movies/" + rating.getMovieId(), Movie.class).getBody();
+            final Movie movie = restTemplate.getForEntity("http://movie-info-service/movies/" + rating.getMovieId(), Movie.class).getBody();
 
             // put them all together
             return movie != null ? new CatalogItem(movie.getName(), "", rating.getRating()) : null;
